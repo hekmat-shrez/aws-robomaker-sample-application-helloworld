@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# source: https://get-help.robotigniteacademy.com/t/how-to-stop-your-robot-when-ros-is-shutting-down/225
 
 # Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
@@ -16,35 +17,58 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-from geometry_msgs.msg import Twist
-
 import rospy
+from geometry_msgs.msg import Twist
+import time
 
-
-class Rotator():
+class MoveRobotStopOnShutdown(object):
+    
 
     def __init__(self):
-        self._cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        
 
-    def rotate_forever(self):
-        self.twist = Twist()
+        # create publisher and message as instance variables
+        self.publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        self.msg = Twist()
 
-        r = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            self.twist.angular.z = 0.1
-            self._cmd_pub.publish(self.twist)
-            rospy.loginfo('Rotating robot: %s', self.twist)
-            r.sleep()
+        # do some cleanup on shutdown
+        rospy.on_shutdown(self.clean_shutdown)
 
+        # start by moving robot
+        rospy.init_node('move_and_stop_robot')
+        self.move_robot()
+        rospy.spin()
 
-def main():
-    rospy.init_node('rotate')
-    try:
-        rotator = Rotator()
-        rotator.rotate_forever()
-    except rospy.ROSInterruptException:
-        pass
+    def publish(self, msg_type="move"):
+        
 
+        while self.publisher.get_num_connections() < 1:
+            # wait for a connection to publisher
+            rospy.loginfo("Waiting for connection to publisher...")
+            time.sleep(1)
+
+        rospy.loginfo("Connected to publisher.")
+
+        rospy.loginfo("Publishing %s message..." % msg_type)
+        self.publisher.publish(self.msg)
+
+    def move_robot(self):
+       
+
+        self.msg.linear.x = 0.2
+        self.publish()
+
+        time.sleep(55) # sleep and then stop
+
+        rospy.signal_shutdown("We are done here!")
+
+    def clean_shutdown(self):
+        
+
+        rospy.loginfo("System is shutting down. Stopping robot...")
+        self.msg.linear.x = 0
+        self.publish("stop")
 
 if __name__ == '__main__':
-    main()
+    MoveRobotStopOnShutdown()
+ 
